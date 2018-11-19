@@ -48,7 +48,11 @@ function co(gen) {
   // which leads to memory leak errors.
   // see https://github.com/tj/co/issues/180
   return new Promise(function(resolve, reject) {
+
+    // 将 gen 转化为一个 generator
     if (typeof gen === 'function') gen = gen.apply(ctx, args);
+
+    // 此处期待 gen 应该是一个 generator 对象， 否则直接 resolve
     if (!gen || typeof gen.next !== 'function') return resolve(gen);
 
     onFulfilled();
@@ -66,6 +70,8 @@ function co(gen) {
       } catch (e) {
         return reject(e);
       }
+
+      // 获取迭代结果，调用 next() 处理迭代结果
       next(ret);
       return null;
     }
@@ -96,7 +102,11 @@ function co(gen) {
      */
 
     function next(ret) {
+      // 如果迭代结束，resolve 并返回，这也是 co 的最终目标：generator 对象迭代结束，并 resolve 最后的值
       if (ret.done) return resolve(ret.value);
+
+      // 还未迭代结束，继续
+      // 将迭代过程中的 ret.value 转化为 promise，继续迭代，toPromise函数式关键
       var value = toPromise.call(ctx, ret.value);
       if (value && isPromise(value)) return value.then(onFulfilled, onRejected);
       return onRejected(new TypeError('You may only yield a function, promise, generator, array, or object, '
@@ -164,6 +174,7 @@ function arrayToPromise(obj) {
  * @api private
  */
 
+ // 最终层层递归 resolve
 function objectToPromise(obj){
   var results = new obj.constructor();
   var keys = Object.keys(obj);
