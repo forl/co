@@ -34,6 +34,8 @@ co.wrap = function (fn) {
 /**
  * Execute the generator function or a generator
  * and return a promise.
+ * 执行传入的 generator 函数或者 generator 对象，返回一个 promise
+ * 在 4.0 之前是返回一个 thunk
  *
  * @param {Function} fn
  * @return {Promise}
@@ -49,10 +51,21 @@ function co(gen) {
   // see https://github.com/tj/co/issues/180
   return new Promise(function(resolve, reject) {
 
-    // 将 gen 转化为一个 generator
+    /**
+     * 如果是一个函数，则带上参数执行
+     * 注意：此处并不判断 gen 是否是一个 generator 函数，因为下一步会判断其返回值是否是 generator 对象
+     * 题外话：实际上也没有必要判断一个函数是否是 generator 函数
+     * 参考：https://stackoverflow.com/questions/16754956/check-if-function-is-a-generator
+     * We talked about this in the TC39 face-to-face meetings and it is deliberate that
+     * we don't expose a way to detect whether a function is a generator or not.
+     * The reason is that any function can return an iterable object so it does not
+     * matter if it is a function or a generator function.
+     */
     if (typeof gen === 'function') gen = gen.apply(ctx, args);
 
-    // 此处期待 gen 应该是一个 generator 对象， 否则直接 resolve
+    /**
+     * 此处期待 gen 应该是一个 generator 对象，否则直接 resolve
+     */
     if (!gen || typeof gen.next !== 'function') return resolve(gen);
 
     onFulfilled();
@@ -66,12 +79,13 @@ function co(gen) {
     function onFulfilled(res) {
       var ret;
       try {
+        // 迭代的值（value）会被。。。
         ret = gen.next(res);
       } catch (e) {
         return reject(e);
       }
 
-      // 获取迭代结果，调用 next() 处理迭代结果
+      // 处理迭代结果
       next(ret);
       return null;
     }
@@ -102,11 +116,16 @@ function co(gen) {
      */
 
     function next(ret) {
-      // 如果迭代结束，resolve 并返回，这也是 co 的最终目标：generator 对象迭代结束，并 resolve 最后的值
+      /**
+       * 如果迭代结束，resolve 并返回，这也是 co 的最终目标：generator 对象迭代结束，
+       * 并 resolve 最后的值
+       */
       if (ret.done) return resolve(ret.value);
 
-      // 还未迭代结束，继续
-      // 将迭代过程中的 ret.value 转化为 promise，继续迭代，toPromise函数式关键
+      /**
+       * 还未迭代结束，继续
+       * 将迭代过程中的 ret.value 转化为 promise，继续迭代，toPromise函数式关键
+       */
       var value = toPromise.call(ctx, ret.value);
       if (value && isPromise(value)) return value.then(onFulfilled, onRejected);
       return onRejected(new TypeError('You may only yield a function, promise, generator, array, or object, '
@@ -168,13 +187,12 @@ function arrayToPromise(obj) {
 /**
  * Convert an object of "yieldables" to a promise.
  * Uses `Promise.all()` internally.
- *
+ * 将 object 中所有 property 转化为 promise
+ * 会递归调用 toPromise 层层转化
  * @param {Object} obj
  * @return {Promise}
  * @api private
  */
-
- // 最终层层递归 resolve
 function objectToPromise(obj){
   var results = new obj.constructor();
   var keys = Object.keys(obj);
