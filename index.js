@@ -43,6 +43,7 @@ co.wrap = function (fn) {
  */
 
 function co(gen) {
+  //  ^-^ 0. 子弹进入弹夹
   var ctx = this;
   var args = slice.call(arguments, 1);
 
@@ -64,10 +65,12 @@ function co(gen) {
     if (typeof gen === 'function') gen = gen.apply(ctx, args);
 
     /**
-     * 此处期待 gen 应该是一个 generator 对象，否则直接 resolve
+     * 此处期待 gen 应该是一个 generator 对象或者可迭代对象，否则直接 resolve
      */
     if (!gen || typeof gen.next !== 'function') return resolve(gen);
 
+    // 触发首次迭代
+    //  ^-^ 1. 扣动扳机，激发第一颗子弹
     onFulfilled();
 
     /**
@@ -75,17 +78,18 @@ function co(gen) {
      * @return {Promise}
      * @api private
      */
-
+    // 迭代 generator 对象，处理迭代结果（将结果带入下一次迭代）
     function onFulfilled(res) {
       var ret;
       try {
-        // 迭代的值（value）会被。。。
+        //  ^-^ 2. 子弹射出
         ret = gen.next(res);
       } catch (e) {
         return reject(e);
       }
 
       // 处理迭代结果
+      // ^-^ 3. 反冲力让下一颗子弹上膛
       next(ret);
       return null;
     }
@@ -120,6 +124,7 @@ function co(gen) {
        * 如果迭代结束，resolve 并返回，这也是 co 的最终目标：generator 对象迭代结束，
        * 并 resolve 最后的值
        */
+      //  ^-^ 4. 子弹打光
       if (ret.done) return resolve(ret.value);
 
       /**
@@ -127,7 +132,9 @@ function co(gen) {
        * 将迭代过程中的 ret.value 转化为 promise，继续迭代，toPromise函数式关键
        */
       var value = toPromise.call(ctx, ret.value);
+      //  ^-^ 5. 撞针撞击上膛的子弹
       if (value && isPromise(value)) return value.then(onFulfilled, onRejected);
+      //  ^-^ 6. 碰到一颗木头做的子弹，卡克
       return onRejected(new TypeError('You may only yield a function, promise, generator, array, or object, '
         + 'but the following object was passed: "' + String(ret.value) + '"'));
     }
